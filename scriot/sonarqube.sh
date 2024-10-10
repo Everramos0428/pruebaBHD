@@ -20,7 +20,6 @@ apt update
 apt install -y docker-ce
 
 
-
 # Configurar SonarQube
 # Ajustar configuraciones de kernel para SonarQube
 sysctl -w vm.max_map_count=524288   # Incrementar el límite máximo de mapeos de memoria virtual
@@ -31,5 +30,5 @@ ulimit -u 8192                      # Incrementar el número máximo de procesos
 # Clonar el repositorio de SonarQube desde GitHub
 git clone https://github.com/SonarSource/sonarqube.git
 
-# Iniciar los contenedores Docker de SonarQube y PostgreSQL usando Docker Compose
+# SonarQube y PostgreSQL
 bin/linux-x86-64/sonar.sh start
