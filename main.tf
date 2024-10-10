@@ -212,7 +212,7 @@ resource "azurerm_linux_virtual_machine" "sq_vm" {
   computer_name                   = "vm-sq"
   admin_username                  = var.user_vm_sonar
   disable_password_authentication = true
-  custom_data = filebase64("scripts/install_sonarqube.sh")
+  custom_data = filebase64("scriot/sonarqube.sh")
 
   admin_ssh_key {
     username   = var.user_vm_sonar
