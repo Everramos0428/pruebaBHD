@@ -19,18 +19,7 @@ apt update
 # Instalar la versión de Docker Community Edition (CE)
 apt install -y docker-ce
 
-# Crear el grupo 'docker' si no existe
-groupadd docker
 
-# Agregar el usuario 'ubuntu' al grupo 'docker' para que pueda ejecutar comandos Docker sin 'sudo'
-usermod -aG docker ubuntu
-
-# Instalar Docker Compose
-# Descargar Docker Compose desde GitHub para la última versión especificada (1.28.4)
-curl -L "https://github.com/docker/compose/releases/download/1.28.4/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-
-# Hacer el archivo de Docker Compose ejecutable
-chmod +x /usr/local/bin/docker-compose
 
 # Configurar SonarQube
 # Ajustar configuraciones de kernel para SonarQube
@@ -40,7 +29,7 @@ ulimit -n 131072                    # Incrementar el número máximo de archivos
 ulimit -u 8192                      # Incrementar el número máximo de procesos de usuario
 
 # Clonar el repositorio de SonarQube desde GitHub
-git clone https://github.com/wlopezob/cloudformation.git
+git clone https://github.com/SonarSource/sonarqube.git
 
 # Iniciar los contenedores Docker de SonarQube y PostgreSQL usando Docker Compose
-docker-compose -f cloudformation/sonarqube/docker-compose-postgres-example.yml up -d
+bin/linux-x86-64/sonar.sh start
