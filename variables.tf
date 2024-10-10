@@ -27,3 +27,25 @@ variable "dominio" {
   type        = string
   description = "Dominio personalizado que se utilizará para configurar la zona DNS dentro de Azure como parte del entorno de pruebas."
 }
+
+
+# Subdominio de las aplicaciones en AKS (Azure Kubernetes Service).
+# Esta variable almacena el subdominio donde se desplegarán las aplicaciones que corren en el clúster AKS.
+variable "subdomain_app_aks" {
+  type        = string
+  description = "Subdominio para las aplicaciones que se ejecutan en AKS"
+}
+
+# Usuario de la máquina virtual (VM) que aloja SonarQube.
+# Esta variable define el nombre del usuario que se utilizará para acceder a la VM de SonarQube.
+variable "user_vm_sq" {
+  type        = string
+  description = "Nombre de usuario para la VM que aloja SonarQube"
+}
+
+# Subdominio para el servicio SonarQube.
+# Define el subdominio donde SonarQube estará accesible.
+variable "subdomain_sonarqube" {
+  type        = string
+  description = "Subdominio donde SonarQube estará accesible"
+}
