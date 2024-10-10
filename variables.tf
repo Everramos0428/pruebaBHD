@@ -38,7 +38,7 @@ variable "subdomain_app_aks" {
 
 # Usuario de la máquina virtual (VM) que aloja SonarQube.
 # Esta variable define el nombre del usuario que se utilizará para acceder a la VM de SonarQube.
-variable "user_vm_sq" {
+variable "user_vm_sonar" {
   type        = string
   description = "Nombre de usuario para la VM que aloja SonarQube"
 }
