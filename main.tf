@@ -42,6 +42,83 @@ resource "azurerm_kubernetes_cluster" "aks" {
   http_application_routing_enabled = false
 }
 
+#Azure DevOps
+resource "azurerm_role_assignment" "arcpull" {
+  scope = azurerm_container_registry.acr.id
+  role_definition_name = "ArcPull"
+  principal_id = azurerm_kubernetes_cluster.aks.kubelet_identify.0.object_id
+}
+
+#VM sonarqube
+resource "azurerm_virtual_network" "network" {
+  depends_on = [ 
+    azurerm_resource_group.rg
+   ]
+  name = "${var.project_name}-network"
+  address_space = ["10.0.0.0/16"]
+  location = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg-name
+}
+
+#Create Subnet
+resource "azurerm_subnet" "Subnet" {
+  name = "${var.project_name}-subnet"
+  resource_group_name = azurerm_resource_group.rg.name
+  virtual_network_name = azurerm_virtual_network.network.name
+  address_prefixes = ["10.0.2.0/24"] 
+}
+
+resource "azurerm_network_security_group" "sq_sg" {
+  name = "${var.project_name}-sq_sg"
+  location = var.location
+  resource_group_name = azurerm_resource_group.rg.name
+  security_rule {
+    name = "${var.project_name}_sq_out_sg"
+    priority = 100
+    direction = "Outbound"
+    access = "Allow"
+    protocol = "Tcp"
+    source_port_range = "*"
+    destination_port_range = "*"
+    source_address_prefix = "*"
+    destination_address_prefix = "*"
+  }
+  security_rule {
+    name = "SSH"
+    priority = 1001
+    direction = "Inbound"
+    access = "Allow"
+    protocol = "Tcp"
+    source_port_range = "*"
+    destination_port_ranges = "22"
+    destination_port_range = "*"
+    source_address_prefix = "*"
+    destination_address_prefix = "*"
+  }
+  security_rule {
+    name = "SONARQUBE"
+    priority = 1002
+    direction = "Inbound"
+    access = "Allow"
+    protocol = "Tcp"
+    source_port_range = "*"
+    destination_port_ranges = "9000"
+    destination_port_range = "*"
+    source_address_prefix = "*"
+    destination_address_prefix = "*"
+  }
+}
+
+#IP publica del sonarqube
+resource "azurerm_public_ip" "sq_ip" {
+  name = "${var.project_name}-sp_ip"
+  location = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+  allocation_method = "Static"
+  sku = "Standard"
+  sku_tier = "Regional"
+}
+
 # Crea una dirección IP pública estática con SKU estándar.
 resource "azurerm_public_ip" "public_ip" {
   name = "${var.project_name}-ippublica"
@@ -56,6 +133,95 @@ resource "azurerm_public_ip" "public_ip" {
 resource "azurerm_dns_zone" "dns" {
   name = var.dominio
   resource_group_name = azurerm_resource_group.rg.name
+}
+
+#subdominio de aks
+resource "azurerm_dns_a_record" "rc" {
+  name = var.subdomain_app_aks
+  zone_name = azurerm_dns_zone.dns.name
+  resource_group_name = azurerm_resource_group.rg.name
+  ttl = 1
+  records = ["${azurerm_public_ip.public.ip.ip_address}"]
+}
+
+#subdominio de sonar
+resource "azurerm_dns_a_record" "rc" {
+  name = var.subdomain_sonarqube
+  zone_name = azurerm_dns_zone.dns.name
+  resource_group_name = azurerm_resource_group.rg.name
+  ttl = 1
+  records = ["${azurerm_public_ip.sq_public.ip.ip_address}"]
+}
+
+resource "azurerm_network_interface" "sq-nic" {
+  name = "${var.project_name}-sq-nic"
+  location = azurerm_resource_group.rg.location
+  resource_group_name = azurerm_resource_group.rg.name
+
+  ip_configuration {
+    name = "${var.project_name}-sq_nic_config"
+    subnet_id = azurerm_subnet.Subnet.id
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.sq_public_ip.id
+  }
+}
+
+# Connect the newtwork security group to the network interface
+resource "azurerm_network_interface_security_group_association" "sg_association" {
+  network_interface_id      = azurerm_network_interface.sq-nic.id
+  #subnet_id = azurerm_subnet.subnet.id
+  network_security_group_id = azurerm_network_security_group.sq_sg.id
+}
+
+# Create storage account for boot diagnostics
+resource "azurerm_storage_account" "sq_storage_account" {
+  name                     = "${var.project_name}diagstorage"
+  location                 = azurerm_resource_group.rg.location
+  resource_group_name      = azurerm_resource_group.rg.name
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+}
+
+# Create SSH key
+resource "tls_private_key" "sq_key_ssh" {
+  algorithm = "RSA"
+  rsa_bits  = 4096
+}
+
+# Create virtual machine
+resource "azurerm_linux_virtual_machine" "sq_vm" {
+  name                  = "${var.project_name}-sq-vm"
+  location              = azurerm_resource_group.rg.location
+  resource_group_name   = azurerm_resource_group.rg.name
+  network_interface_ids = [azurerm_network_interface.sq-nic.id]
+  size                  = "Standard_B2s"
+
+  os_disk {
+    name                 = "${var.project_name}-disk_os"
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts-gen2"
+    version = "latest"
+  }
+
+  computer_name                   = "vm-sq"
+  admin_username                  = var.user_vm_sq
+  disable_password_authentication = true
+  custom_data = filebase64("scripts/install_sonarqube.sh")
+
+  admin_ssh_key {
+    username   = var.user_vm_sq
+    public_key = tls_private_key.sq_key_ssh.public_key_openssh
+  }
+
+  boot_diagnostics {
+    storage_account_uri = azurerm_storage_account.sq_storage_account.primary_blob_endpoint
+  }
 }
 
 # Crea un registro DNS tipo A, apuntando la zona DNS a la IP pública.
@@ -82,8 +248,7 @@ resource "helm_release" "ingress-nginx" {
   name = "ingress-nginx"
   namespace = "ingress-basic"
   create_namespace = true
-  chart = "ingress-nginx/ingress-nginx"
-  version = "4.10.1"
+  chart = "./chart/ingress-nginx-4.3.0.tgz"
   timeout = 600
   reuse_values = true
   recreate_pods = true
